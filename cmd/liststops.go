@@ -24,40 +24,49 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type DirectionFlag string
-
-func (f DirectionFlag) String() string {
-	return string(f)
+type DirectionFlag struct {
+	inbound  bool
+	outbound bool
 }
 
-func (f DirectionFlag) Set(value string) error {
-	validFlags := []string{"inbound", "outbound", "i", "o", ""}
+func (f *DirectionFlag) String() string {
+	return fmt.Sprintf("inbound: %t, outbound: %t", f.inbound, f.outbound)
+}
 
-	for _, flag := range validFlags {
-		if flag == string(value) {
-			return nil
-		}
+// can probably clean all this up
+func (f *DirectionFlag) Set(value string) error {
+	lowercase := strings.ToLower(value)
+	if lowercase == "inbound" || lowercase == "i" {
+		f.inbound = true
+		f.outbound = false
+	} else if lowercase == "outbound" || lowercase == "o" {
+		f.inbound = false
+		f.outbound = true
+	} else if lowercase == "" {
+		f.inbound = true
+		f.outbound = true
+	} else {
+		errMsg := fmt.Sprintf("Please enter one of the following: inbound, i, outbound, o")
+		return errors.New(errMsg)
 	}
-
-	errMsg := fmt.Sprintf("Please enter one of the following: %s", strings.Join(validFlags, ", "))
-	return errors.New(errMsg)
+	return nil
 }
 
-func (f DirectionFlag) Type() string {
-	return string(f)
+func (f *DirectionFlag) Type() string {
+	return "DirectionFlag"
 }
 
 // listStopsCmd represents the listStops command
 var listStopsCmd = &cobra.Command{
 	Use:   "liststops [routeTag]",
 	Short: "List stops for a given MUNI route",
-	Args:  cobra.MinimumNArgs(1),
+	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		stops, err := listStops(args[0])
 		if err != nil {
 			fmt.Printf("error: %s\n", err)
 		} else {
-			stops.printStops(strings.ToLower(directionFlag.String()))
+			stops.printStops(directionFlag)
 		}
 	},
 }
@@ -84,15 +93,15 @@ type StopsByDirection struct {
 	outboundStops []Stop
 }
 
-func (stopsByDirection StopsByDirection) printStops(direction string) {
-	if direction == "inbound" || direction == "i" || direction == "" {
+func (stopsByDirection StopsByDirection) printStops(direction DirectionFlag) {
+	if direction.inbound {
 		fmt.Println("----------INBOUND STOPS----------")
 		for _, stop := range stopsByDirection.inboundStops {
 			fmt.Printf("%s - %s\n", stop.StopId, stop.Title)
 		}
 	}
 
-	if direction == "outbound" || direction == "o" || direction == "" {
+	if direction.outbound {
 		fmt.Println("----------OUTBOUND STOPS----------")
 		for _, stop := range stopsByDirection.outboundStops {
 			fmt.Printf("%s - %s\n", stop.StopId, stop.Title)
@@ -154,5 +163,5 @@ var directionFlag DirectionFlag
 
 func init() {
 	rootCmd.AddCommand(listStopsCmd)
-	listStopsCmd.Flags().VarP(directionFlag, "direction", "d", "Show only inbound or outbound stops")
+	listStopsCmd.Flags().VarP(&directionFlag, "direction", "d", "Show only inbound or outbound stops")
 }
